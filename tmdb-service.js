@@ -120,59 +120,108 @@ async function fetchTamilMovies() {
     console.log('📽️  Fetching Tamil movies from TMDB...');
 
     const allMovies = [];
+    const maxPages = 5; // Fetch up to 5 pages for more results
 
-    // Strategy 1: Movies with original Tamil language
-    try {
-      const tamilUrl = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=en&with_original_language=ta&sort_by=popularity.desc&page=1`;
-      const tamilResponse = await fetchFromTMDB(tamilUrl);
-      if (tamilResponse.results) {
-        allMovies.push(...tamilResponse.results.map(formatMovie));
+    // Strategy 1: Movies with original Tamil language (multiple pages)
+    for (let page = 1; page <= maxPages; page++) {
+      try {
+        const tamilUrl = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=en&with_original_language=ta&sort_by=popularity.desc&vote_count.gte=10&page=${page}`;
+        const tamilResponse = await fetchFromTMDB(tamilUrl);
+        if (tamilResponse.results && tamilResponse.results.length > 0) {
+          allMovies.push(...tamilResponse.results.map(formatMovie));
+        } else {
+          break; // No more pages
+        }
+      } catch (error) {
+        console.log(`⚠️  Tamil page ${page} failed, continuing...`);
+        break;
       }
-    } catch (error) {
-      console.log('⚠️  Tamil original language query failed, continuing...');
     }
 
-    // Strategy 2: Search for movies with "Tamil" in title or overview
+    // Strategy 2: Search for movies with Tamil keywords (multiple pages)
+    const tamilKeywords = ['tamil', 'kollywood', 'chennai', 'south indian', 'madras'];
+    for (const keyword of tamilKeywords) {
+      for (let page = 1; page <= 3; page++) {
+        try {
+          const searchUrl = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&language=en&query=${encodeURIComponent(keyword)}&sort_by=popularity.desc&page=${page}`;
+          const searchResponse = await fetchFromTMDB(searchUrl);
+          if (searchResponse.results) {
+            const newMovies = searchResponse.results
+              .filter(movie => movie.vote_count >= 10) // Filter out very low-rated entries
+              .map(formatMovie);
+            allMovies.push(...newMovies);
+          }
+        } catch (error) {
+          break;
+        }
+      }
+    }
+
+    // Strategy 3: Popular Indian movies (broader search)
+    for (let page = 1; page <= maxPages; page++) {
+      try {
+        const indiaUrl = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=en&region=IN&sort_by=popularity.desc&vote_count.gte=50&page=${page}`;
+        const indiaResponse = await fetchFromTMDB(indiaUrl);
+        if (indiaResponse.results) {
+          // Include movies that might be Tamil based on various criteria
+          const potentialTamilMovies = indiaResponse.results
+            .filter(movie => {
+              if (allMovies.some(m => m.id === `tmdb_movie_${movie.id}`)) return false;
+
+              const title = (movie.title || '').toLowerCase();
+              const overview = (movie.overview || '').toLowerCase();
+              const originalTitle = (movie.original_title || '').toLowerCase();
+
+              // Check for Tamil indicators
+              const tamilIndicators = [
+                'tamil', 'kollywood', 'chennai', 'madras', 'south indian',
+                'rajinikanth', 'kamal haasan', 'vikram', 'ajith', 'karthi',
+                'nayanthara', 'samantha', 'katrina', 'deepika', 'priyanka',
+                'dhanush', 'suriya', 'vikrant', 'arjun', 'jiiva'
+              ];
+
+              return tamilIndicators.some(indicator =>
+                title.includes(indicator) ||
+                overview.includes(indicator) ||
+                originalTitle.includes(indicator)
+              );
+            })
+            .map(formatMovie);
+          allMovies.push(...potentialTamilMovies);
+        } else {
+          break;
+        }
+      } catch (error) {
+        console.log(`⚠️  India region page ${page} failed, continuing...`);
+        break;
+      }
+    }
+
+    // Strategy 4: Top rated movies from India
     try {
-      const searchUrl = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&language=en&query=Tamil&sort_by=popularity.desc&page=1`;
-      const searchResponse = await fetchFromTMDB(searchUrl);
-      if (searchResponse.results) {
-        // Filter out duplicates and add new ones
+      const topRatedUrl = `${TMDB_BASE_URL}/movie/top_rated?api_key=${TMDB_API_KEY}&language=en&region=IN&page=1`;
+      const topRatedResponse = await fetchFromTMDB(topRatedUrl);
+      if (topRatedResponse.results) {
         const existingIds = new Set(allMovies.map(m => m.id));
-        const newMovies = searchResponse.results
+        const topRatedMovies = topRatedResponse.results
           .filter(movie => !existingIds.has(`tmdb_movie_${movie.id}`))
-          .map(formatMovie);
-        allMovies.push(...newMovies);
-      }
-    } catch (error) {
-      console.log('⚠️  Tamil search query failed, continuing...');
-    }
-
-    // Strategy 3: Popular movies from India (many Tamil movies are categorized this way)
-    try {
-      const indiaUrl = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=en&region=IN&sort_by=popularity.desc&vote_count.gte=10&page=1`;
-      const indiaResponse = await fetchFromTMDB(indiaUrl);
-      if (indiaResponse.results) {
-        // Filter for movies that might be Tamil (by checking title/keywords)
-        const existingIds = new Set(allMovies.map(m => m.id));
-        const tamilKeywords = ['tamil', 'kollywood', 'chennai', 'madras', 'south indian'];
-        const potentialTamilMovies = indiaResponse.results
           .filter(movie => {
-            if (existingIds.has(`tmdb_movie_${movie.id}`)) return false;
+            // Include if it has South Indian indicators
             const title = (movie.title || '').toLowerCase();
             const overview = (movie.overview || '').toLowerCase();
-            return tamilKeywords.some(keyword =>
-              title.includes(keyword) || overview.includes(keyword)
+            const southIndianTerms = ['tamil', 'telugu', 'kannada', 'malayalam', 'kollywood', 'tollywood'];
+            return southIndianTerms.some(term =>
+              title.includes(term) || overview.includes(term)
             );
           })
           .map(formatMovie);
-        allMovies.push(...potentialTamilMovies);
+        allMovies.push(...topRatedMovies);
       }
     } catch (error) {
-      console.log('⚠️  India region query failed, continuing...');
+      console.log('⚠️  Top rated query failed, continuing...');
     }
 
-    // Strategy 4: Upcoming Tamil movies
+    // Strategy 5: Upcoming movies from India
     try {
       const upcomingUrl = `${TMDB_BASE_URL}/movie/upcoming?api_key=${TMDB_API_KEY}&language=en&region=IN&page=1`;
       const upcomingResponse = await fetchFromTMDB(upcomingUrl);
@@ -181,10 +230,9 @@ async function fetchTamilMovies() {
         const upcomingMovies = upcomingResponse.results
           .filter(movie => !existingIds.has(`tmdb_movie_${movie.id}`))
           .filter(movie => {
-            // Include if it has Tamil keywords or is from India
             const title = (movie.title || '').toLowerCase();
             const overview = (movie.overview || '').toLowerCase();
-            const tamilKeywords = ['tamil', 'kollywood', 'chennai', 'madras'];
+            const tamilKeywords = ['tamil', 'kollywood', 'chennai', 'madras', 'rajini', 'kamal', 'vikram'];
             return tamilKeywords.some(keyword =>
               title.includes(keyword) || overview.includes(keyword)
             );
@@ -199,15 +247,25 @@ async function fetchTamilMovies() {
       console.log('⚠️  Upcoming movies query failed, continuing...');
     }
 
-    // Remove duplicates based on TMDB ID
-    const uniqueMovies = allMovies.filter((movie, index, self) =>
-      index === self.findIndex(m => m.id === movie.id)
-    );
+    // Remove duplicates and filter out very short/low-quality entries
+    const uniqueMovies = allMovies
+      .filter((movie, index, self) => index === self.findIndex(m => m.id === movie.id))
+      .filter(movie => {
+        // Filter out obvious non-feature films and low-quality entries
+        const title = movie.name.toLowerCase();
+        const excludeTerms = ['short film', 'documentary', 'trailer', 'promo', 'test', 'demo', 'ai short'];
+        const hasExcludeTerm = excludeTerms.some(term => title.includes(term));
 
-    // Sort by popularity (TMDB doesn't provide this directly, so we'll sort by rating and year)
+        // Keep if it's a feature film with decent info
+        return !hasExcludeTerm && movie.year > 1950 && movie.description.length > 10;
+      });
+
+    // Sort by a combination of popularity, rating, and recency
     uniqueMovies.sort((a, b) => {
-      if (b.rating !== a.rating) return b.rating - a.rating;
-      return b.year - a.year;
+      // Prioritize higher rated movies, then newer movies
+      const scoreA = (a.rating * 10) + (a.year / 100);
+      const scoreB = (b.rating * 10) + (b.year / 100);
+      return scoreB - scoreA;
     });
 
     console.log(`✅ Fetched ${uniqueMovies.length} Tamil movies from TMDB`);
