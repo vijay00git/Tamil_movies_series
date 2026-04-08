@@ -4,6 +4,7 @@ const manifest = require("./manifest");
 const { movies, series } = require("./catalog");
 
 const app = express();
+// Use Replit's PORT environment variable or default to 3000
 const PORT = process.env.PORT || 3000;
 
 // Enable CORS
