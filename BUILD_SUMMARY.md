@@ -1,4 +1,4 @@
-# 📺 Tamil Movies & Series Stremio Add-on - COMPLETE BUILD SUMMARY
+https://tamilmoviesseries--vijaytest5555.replit.app/manifest.json# 📺 Tamil Movies & Series Stremio Add-on - COMPLETE BUILD SUMMARY
 
 ## 🎯 What Was Built
 

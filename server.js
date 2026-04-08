@@ -27,13 +27,58 @@ app.get("/catalog/:type/:id.json", (req, res) => {
   let items = [];
   let catalogName = "";
 
-  // Filter by catalog type
-  if (id === "tamil_movies" || id === "tamil_movies_recent") {
+  // ===== MAIN CATALOGS =====
+  if (id === "tamil_movies") {
     items = movies;
     catalogName = "Tamil Movies";
-  } else if (id === "tamil_series" || id === "tamil_series_trending") {
+  } else if (id === "tamil_series") {
     items = series;
     catalogName = "Tamil Series";
+  }
+
+  // ===== SPECIAL COLLECTIONS =====
+  else if (id === "tamil_movies_recent") {
+    items = movies;
+    catalogName = "Latest Tamil Movies";
+    items.sort((a, b) => b.year - a.year);
+  } else if (id === "tamil_movies_classics") {
+    items = movies.filter(m => m.era === "Classic" || (m.year >= 1980 && m.year <= 1995));
+    catalogName = "Classic Tamil Movies";
+  } else if (id === "tamil_movies_toprated") {
+    items = movies.filter(m => m.rating >= 7.5);
+    items.sort((a, b) => b.rating - a.rating);
+    catalogName = "Top Rated Tamil Movies";
+  } else if (id === "tamil_series_trending") {
+    items = series;
+    catalogName = "Trending Tamil Series";
+    items.sort((a, b) => b.year - a.year);
+  }
+
+  // ===== DUBBED CONTENT =====
+  else if (id === "tamil_dubbed_movies") {
+    items = movies.filter(m => m.language === "Dubbed Tamil");
+    catalogName = "Dubbed Tamil Movies";
+  } else if (id === "tamil_dubbed_series") {
+    items = series.filter(s => s.language === "Dubbed Tamil");
+    catalogName = "Dubbed Tamil Series";
+  }
+
+  // ===== GENRE-WISE MOVIES =====
+  else if (id === "tamil_movies_action") {
+    items = movies.filter(m => m.genres.includes("Action"));
+    catalogName = "Tamil Action Movies";
+  } else if (id === "tamil_movies_drama") {
+    items = movies.filter(m => m.genres.includes("Drama"));
+    catalogName = "Tamil Drama Movies";
+  } else if (id === "tamil_movies_romance") {
+    items = movies.filter(m => m.genres.includes("Romance"));
+    catalogName = "Tamil Romance Movies";
+  } else if (id === "tamil_movies_comedy") {
+    items = movies.filter(m => m.genres.includes("Comedy"));
+    catalogName = "Tamil Comedy Movies";
+  } else if (id === "tamil_movies_thriller") {
+    items = movies.filter(m => m.genres.includes("Thriller"));
+    catalogName = "Tamil Thriller Movies";
   }
 
   // Filter by genre if provided
@@ -41,11 +86,6 @@ app.get("/catalog/:type/:id.json", (req, res) => {
     items = items.filter((item) =>
       item.genres.map((g) => g.toLowerCase()).includes(genre.toLowerCase())
     );
-  }
-
-  // Sort by year (latest first) for recent catalogs
-  if (id === "tamil_movies_recent" || id === "tamil_series_trending") {
-    items.sort((a, b) => b.year - a.year);
   }
 
   // Apply pagination
