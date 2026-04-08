@@ -1,0 +1,29 @@
+{
+  "name": "tamil-movies-series-addon",
+  "version": "1.0.0",
+  "description": "Stremio add-on for Tamil movies and TV series",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "quickstart": "node quickstart.js",
+    "test": "node test-addon.js",
+    "quickstart:view": "node -e \"require('./quickstart.js')\""
+  },
+  "keywords": [
+    "stremio",
+    "addon",
+    "tamil",
+    "movies",
+    "series"
+  ],
+  "author": "Tamil Movies & Series",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
