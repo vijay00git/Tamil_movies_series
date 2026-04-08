@@ -1,7 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const manifest = require("./manifest");
-const { movies, series } = require("./catalog");
+const defaultCatalog = require("./catalog");
+const { initializeTMDB, getMovies, getSeries } = require("./tmdb-service");
 
 const app = express();
 // Use Replit's PORT environment variable or default to 3000
@@ -11,155 +12,206 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Combine all content
-const allContent = [...movies, ...series];
+// Initialize TMDB data on startup
+initializeTMDB().catch(err => {
+  console.error('Warning: TMDB initialization failed, using fallback catalog');
+});
+
+// Combine all content (will use TMDB data when available)
+let allContent = [...defaultCatalog.movies, ...defaultCatalog.series];
 
 // Manifest endpoint
 app.get("/manifest.json", (req, res) => {
   res.json(manifest);
 });
 
-// Catalog endpoint - returns catalog with items
-app.get("/catalog/:type/:id.json", (req, res) => {
+// Catalog endpoint - returns catalog with items (with auto-update from TMDB)
+app.get("/catalog/:type/:id.json", async (req, res) => {
   const { type, id } = req.params;
   const { genre, skip = 0 } = req.query;
 
-  let items = [];
-  let catalogName = "";
+  try {
+    // Fetch from TMDB (with cache) or use default catalog
+    let tmdbMovies = [];
+    let tmdbSeries = [];
+    
+    if (type === "movie") {
+      tmdbMovies = await getMovies();
+    } else if (type === "series") {
+      tmdbSeries = await getSeries();
+    }
 
-  // ===== MAIN CATALOGS =====
-  if (id === "tamil_movies") {
-    items = movies;
-    catalogName = "Tamil Movies";
-  } else if (id === "tamil_series") {
-    items = series;
-    catalogName = "Tamil Series";
+    let items = [];
+    let catalogName = "";
+
+    // ===== MAIN CATALOGS =====
+    if (id === "tamil_movies") {
+      items = tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies;
+      catalogName = "Tamil Movies";
+    } else if (id === "tamil_series") {
+      items = tmdbSeries.length > 0 ? tmdbSeries : defaultCatalog.series;
+      catalogName = "Tamil Series";
+    }
+
+    // ===== SPECIAL COLLECTIONS =====
+    else if (id === "tamil_movies_recent") {
+      items = tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies;
+      catalogName = "Latest Tamil Movies";
+      items.sort((a, b) => b.year - a.year);
+    } else if (id === "tamil_movies_classics") {
+      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => 
+        m.year >= 1980 && m.year <= 1995
+      );
+      catalogName = "Classic Tamil Movies";
+    } else if (id === "tamil_movies_toprated") {
+      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => m.rating >= 7.0);
+      items.sort((a, b) => b.rating - a.rating);
+      catalogName = "Top Rated Tamil Movies";
+    } else if (id === "tamil_series_trending") {
+      items = tmdbSeries.length > 0 ? tmdbSeries : defaultCatalog.series;
+      catalogName = "Trending Tamil Series";
+      items.sort((a, b) => b.year - a.year);
+    }
+
+    // ===== DUBBED CONTENT =====
+    else if (id === "tamil_dubbed_movies") {
+      items = defaultCatalog.movies.filter(m => m.language === "Dubbed Tamil");
+      catalogName = "Dubbed Tamil Movies";
+    } else if (id === "tamil_dubbed_series") {
+      items = defaultCatalog.series.filter(s => s.language === "Dubbed Tamil");
+      catalogName = "Dubbed Tamil Series";
+    }
+
+    // ===== GENRE-WISE MOVIES =====
+    else if (id === "tamil_movies_action") {
+      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => 
+        m.genres.includes("Action")
+      );
+      catalogName = "Tamil Action Movies";
+    } else if (id === "tamil_movies_drama") {
+      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => 
+        m.genres.includes("Drama")
+      );
+      catalogName = "Tamil Drama Movies";
+    } else if (id === "tamil_movies_romance") {
+      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => 
+        m.genres.includes("Romance")
+      );
+      catalogName = "Tamil Romance Movies";
+    } else if (id === "tamil_movies_comedy") {
+      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => 
+        m.genres.includes("Comedy")
+      );
+      catalogName = "Tamil Comedy Movies";
+    } else if (id === "tamil_movies_thriller") {
+      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => 
+        m.genres.includes("Thriller")
+      );
+      catalogName = "Tamil Thriller Movies";
+    }
+
+    // Filter by genre if provided
+    if (genre) {
+      items = items.filter((item) =>
+        item.genres.map((g) => g.toLowerCase()).includes(genre.toLowerCase())
+      );
+    }
+
+    // Apply pagination
+    const skipNum = parseInt(skip) || 0;
+    const pageSize = 20;
+    const paginatedItems = items.slice(skipNum, skipNum + pageSize);
+
+    // Format response for Stremio
+    const metas = paginatedItems.map((item) => ({
+      id: item.id,
+      type: item.type,
+      name: item.name,
+      poster: item.poster,
+      background: item.background,
+      logo: null,
+      description: item.description,
+      releaseInfo: `${item.year}`,
+      imdbRating: item.rating,
+      genres: item.genres,
+      year: item.year
+    }));
+
+    res.json({ metas });
+  } catch (error) {
+    console.error('Catalog error:', error);
+    res.status(500).json({ error: 'Failed to fetch catalog' });
   }
-
-  // ===== SPECIAL COLLECTIONS =====
-  else if (id === "tamil_movies_recent") {
-    items = movies;
-    catalogName = "Latest Tamil Movies";
-    items.sort((a, b) => b.year - a.year);
-  } else if (id === "tamil_movies_classics") {
-    items = movies.filter(m => m.era === "Classic" || (m.year >= 1980 && m.year <= 1995));
-    catalogName = "Classic Tamil Movies";
-  } else if (id === "tamil_movies_toprated") {
-    items = movies.filter(m => m.rating >= 7.5);
-    items.sort((a, b) => b.rating - a.rating);
-    catalogName = "Top Rated Tamil Movies";
-  } else if (id === "tamil_series_trending") {
-    items = series;
-    catalogName = "Trending Tamil Series";
-    items.sort((a, b) => b.year - a.year);
-  }
-
-  // ===== DUBBED CONTENT =====
-  else if (id === "tamil_dubbed_movies") {
-    items = movies.filter(m => m.language === "Dubbed Tamil");
-    catalogName = "Dubbed Tamil Movies";
-  } else if (id === "tamil_dubbed_series") {
-    items = series.filter(s => s.language === "Dubbed Tamil");
-    catalogName = "Dubbed Tamil Series";
-  }
-
-  // ===== GENRE-WISE MOVIES =====
-  else if (id === "tamil_movies_action") {
-    items = movies.filter(m => m.genres.includes("Action"));
-    catalogName = "Tamil Action Movies";
-  } else if (id === "tamil_movies_drama") {
-    items = movies.filter(m => m.genres.includes("Drama"));
-    catalogName = "Tamil Drama Movies";
-  } else if (id === "tamil_movies_romance") {
-    items = movies.filter(m => m.genres.includes("Romance"));
-    catalogName = "Tamil Romance Movies";
-  } else if (id === "tamil_movies_comedy") {
-    items = movies.filter(m => m.genres.includes("Comedy"));
-    catalogName = "Tamil Comedy Movies";
-  } else if (id === "tamil_movies_thriller") {
-    items = movies.filter(m => m.genres.includes("Thriller"));
-    catalogName = "Tamil Thriller Movies";
-  }
-
-  // Filter by genre if provided
-  if (genre) {
-    items = items.filter((item) =>
-      item.genres.map((g) => g.toLowerCase()).includes(genre.toLowerCase())
-    );
-  }
-
-  // Apply pagination
-  const skipNum = parseInt(skip) || 0;
-  const pageSize = 20;
-  const paginatedItems = items.slice(skipNum, skipNum + pageSize);
-
-  // Format response for Stremio
-  const metas = paginatedItems.map((item) => ({
-    id: item.id,
-    type: item.type,
-    name: item.name,
-    poster: item.poster,
-    background: item.background,
-    logo: null,
-    description: item.description,
-    releaseInfo: `${item.year}`,
-    imdbRating: item.rating,
-    genres: item.genres,
-    year: item.year
-  }));
-
-  res.json({ metas });
 });
 
 // Meta endpoint - returns metadata for a specific item
-app.get("/meta/:type/:id.json", (req, res) => {
+app.get("/meta/:type/:id.json", async (req, res) => {
   const { type, id } = req.params;
 
-  const item = allContent.find((c) => c.id === id);
+  try {
+    // Try to find in TMDB data first
+    let tmdbMovies = [];
+    let tmdbSeries = [];
+    
+    if (type === "movie") {
+      tmdbMovies = await getMovies();
+    } else if (type === "series") {
+      tmdbSeries = await getSeries();
+    }
 
-  if (!item) {
-    return res.status(404).json({ error: "Not found" });
+    let allItems = type === "movie" 
+      ? [...tmdbMovies, ...defaultCatalog.movies]
+      : [...tmdbSeries, ...defaultCatalog.series];
+
+    const item = allItems.find((c) => c.id === id);
+
+    if (!item) {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    const meta = {
+      id: item.id,
+      type: item.type,
+      name: item.name,
+      poster: item.poster,
+      background: item.background,
+      logo: null,
+      description: item.description,
+      releaseInfo: `${item.year}`,
+      imdbRating: item.rating,
+      genres: item.genres,
+      year: item.year,
+      director: "Tamil Director",
+      cast: ["Actor 1", "Actor 2", "Actor 3"],
+      runtime: item.type === "movie" ? 140 : 45,
+      videos:
+        item.type === "movie"
+          ? [
+              {
+                id: item.id,
+                title: item.name,
+                season: 0,
+                episode: 0,
+                released: new Date(item.year, 0, 1).toISOString()
+              }
+            ]
+          : Array.from(
+              { length: item.episodesCount || 10 },
+              (_, i) => ({
+                id: `${item.id}_s1e${i + 1}`,
+                title: `Episode ${i + 1}`,
+                season: 1,
+                episode: i + 1,
+                released: new Date(item.year, 0, i + 1).toISOString()
+              })
+            )
+    };
+
+    res.json({ meta });
+  } catch (error) {
+    console.error('Meta error:', error);
+    res.status(500).json({ error: 'Failed to fetch metadata' });
   }
-
-  const meta = {
-    id: item.id,
-    type: item.type,
-    name: item.name,
-    poster: item.poster,
-    background: item.background,
-    logo: null,
-    description: item.description,
-    releaseInfo: `${item.year}`,
-    imdbRating: item.rating,
-    genres: item.genres,
-    year: item.year,
-    director: "Tamil Director",
-    cast: ["Actor 1", "Actor 2", "Actor 3"],
-    runtime: item.type === "movie" ? 140 : 45,
-    videos:
-      item.type === "movie"
-        ? [
-            {
-              id: item.id,
-              title: item.name,
-              season: 0,
-              episode: 0,
-              released: new Date(item.year, 0, 1).toISOString()
-            }
-          ]
-        : Array.from(
-            { length: item.episodesCount || 10 },
-            (_, i) => ({
-              id: `${item.id}_s1e${i + 1}`,
-              title: `Episode ${i + 1}`,
-              season: 1,
-              episode: i + 1,
-              released: new Date(item.year, 0, i + 1).toISOString()
-            })
-          )
-  };
-
-  res.json({ meta });
 });
 
 // Stream endpoint (returns empty for now - can be extended)
@@ -232,14 +284,18 @@ app.get("/", (req, res) => {
           <h2>Features</h2>
           <ul>
             <li>✅ Complete catalog of Tamil movies and series</li>
+            <li>✅ 🔄 Auto-updates from TMDB API (every 6 hours)</li>
             <li>✅ Multiple genres: Action, Comedy, Drama, Romance, Thriller, Horror, etc.</li>
             <li>✅ Genre filtering support</li>
             <li>✅ Pagination support</li>
             <li>✅ Latest and trending content</li>
             <li>✅ Rich metadata for each item</li>
+            <li>✅ Dubbed Tamil movies and series</li>
+            <li>✅ Classic movies and top-rated collections</li>
           </ul>
 
           <p><strong>Status:</strong> Running on port ${PORT}</p>
+          <p><strong>Data Source:</strong> TMDB API + Fallback Catalog</p>
         </div>
       </body>
     </html>
@@ -251,6 +307,7 @@ app.listen(PORT, () => {
   console.log(`\n✅ Tamil Movies & Series Addon is running!`);
   console.log(`📺 Access it at: http://localhost:${PORT}`);
   console.log(`📋 Manifest URL: http://localhost:${PORT}/manifest.json`);
+  console.log(`🔄 TMDB Auto-Update: Enabled (updates every 6 hours)`);
   console.log(`📌 Use this URL in Stremio to install the add-on\n`);
 });
 
