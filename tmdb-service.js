@@ -119,8 +119,8 @@ async function fetchTamilMovies() {
   try {
     console.log('📽️  Fetching Tamil movies from TMDB...');
 
-    // Search for Tamil language movies with high ratings
-    const url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=ta&sort_by=popularity.desc&vote_average.gte=5&page=1`;
+    // Search for movies whose original language is Tamil
+    const url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=ta&with_original_language=ta&sort_by=popularity.desc&vote_average.gte=5&page=1`;
 
     const response = await fetchFromTMDB(url);
     const movies = response.results ? response.results.map(formatMovie) : [];
@@ -140,8 +140,8 @@ async function fetchTamilSeries() {
   try {
     console.log('📺 Fetching Tamil series from TMDB...');
 
-    // Search for Tamil language series with high ratings
-    const url = `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&language=ta&sort_by=popularity.desc&vote_average.gte=5&page=1`;
+    // Search for series whose original language is Tamil
+    const url = `${TMDB_BASE_URL}/discover/tv?api_key=${TMDB_API_KEY}&language=ta&with_original_language=ta&sort_by=popularity.desc&vote_average.gte=5&page=1`;
 
     const response = await fetchFromTMDB(url);
     const series = response.results ? response.results.map(formatSeries) : [];
