@@ -135,8 +135,7 @@ app.get("/catalog/:type/:id.json", async (req, res) => {
       );
     }
 
-    // Apply pagination
-    const skipNum = parseInt(skip) || 0;
+    // Apply pagination (skipNum already declared above)
     const pageSize = 20;
     const paginatedItems = items.slice(skipNum, skipNum + pageSize);
 
