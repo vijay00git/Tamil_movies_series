@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎬 Tamil Movies & Series Addon</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      font-size: 2.5em;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .stats {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.1);
+      padding: 15px;
+      border-radius: 10px;
+      text-align: center;
+      min-width: 150px;
+    }
+    .stat-number {
+      font-size: 2em;
+      font-weight: bold;
+      color: #ffd700;
+    }
+    .stat-label {
+      font-size: 0.9em;
+      opacity: 0.8;
+    }
+    .section {
+      background: rgba(0,0,0,0.3);
+      border-radius: 15px;
+      padding: 25px;
+      margin-bottom: 25px;
+    }
+    .section h2 {
+      color: #ffd700;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #ffd700;
+      padding-bottom: 10px;
+    }
+    .btn {
+      background: linear-gradient(45deg, #667eea, #764ba2);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 25px;
+      cursor: pointer;
+      margin: 10px;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+    .endpoint {
+      background: rgba(0,0,0,0.3);
+      padding: 10px;
+      border-radius: 5px;
+      margin: 5px 0;
+      font-family: 'Courier New', monospace;
+      word-break: break-all;
+    }
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    .tool-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px;
+      padding: 20px;
+    }
+    .tool-card h3 {
+      color: #ffd700;
+      margin-bottom: 15px;
+    }
+    @media (max-width: 768px) {
+      .container {
+        padding: 10px;
+      }
+      .header h1 {
+        font-size: 2em;
+      }
+      .tools-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎬 Tamil Movies & Series Addon</h1>
+      <p id="subtitle">Loading...</p>
+    </div>
+
+    <div class="stats" id="stats">
+      <div class="stat-card">
+        <div class="stat-number" id="movies-count">...</div>
+        <div class="stat-label">Tamil Movies</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="series-count">...</div>
+        <div class="stat-label">Tamil Series</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="cache-expiry">...</div>
+        <div class="stat-label">Cache Duration</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>📱 Stremio Installation</h2>
+      <div class="tool-card">
+        <p><strong>Add-on URL:</strong></p>
+        <div class="endpoint" id="addon-url">Loading...</div>
+        <p style="margin: 15px 0;">Copy this URL and paste it in Stremio's add-on section.</p>
+        <button class="btn" onclick="copyToClipboard()">Copy URL</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>🛠️ Quick Testing Tools</h2>
+      <div class="tools-grid">
+        <div class="tool-card">
+          <h3>📋 Test Manifest</h3>
+          <button class="btn" onclick="testEndpoint('/manifest.json')">Test Manifest</button>
+          <div class="endpoint">GET /manifest.json</div>
+        </div>
+        <div class="tool-card">
+          <h3>🎬 Test Movies</h3>
+          <button class="btn" onclick="testEndpoint('/catalog/movie/tamil_movies.json')">Test Movies</button>
+          <div class="endpoint">GET /catalog/movie/tamil_movies.json</div>
+        </div>
+        <div class="tool-card">
+          <h3>📺 Test Series</h3>
+          <button class="btn" onclick="testEndpoint('/catalog/series/tamil_series.json')">Test Series</button>
+          <div class="endpoint">GET /catalog/series/tamil_series.json</div>
+        </div>
+        <div class="tool-card">
+          <h3>⚙️ Cache Status</h3>
+          <p id="cache-status">Loading...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>📊 Available Catalogs</h2>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">
+        <div><strong>Movies:</strong> tamil_movies, tamil_movies_recent, tamil_movies_toprated, tamil_movies_classics</div>
+        <div><strong>Genres:</strong> tamil_movies_action, tamil_movies_drama, tamil_movies_romance, tamil_movies_comedy</div>
+        <div><strong>Special:</strong> tamil_dubbed_movies, tamil_dubbed_series</div>
+        <div><strong>Series:</strong> tamil_series, tamil_series_trending</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Load cache info on page load
+    async function loadCacheInfo() {
+      try {
+        const response = await fetch('/admin/cache-info');
+        const data = await response.json();
+
+        document.getElementById('subtitle').textContent = `Stremio add-on with ${data.moviesCount}+ Tamil movies`;
+        document.getElementById('movies-count').textContent = data.moviesCount + '+';
+        document.getElementById('series-count').textContent = data.seriesCount;
+        document.getElementById('cache-expiry').textContent = data.cacheExpiry;
+        document.getElementById('cache-status').textContent = `Last Updated: ${data.lastUpdated}\nCache Valid: ${data.isValid ? '✅' : '❌'}`;
+        document.getElementById('addon-url').textContent = window.location.origin + '/manifest.json';
+      } catch (error) {
+        console.error('Error loading cache info:', error);
+        document.getElementById('subtitle').textContent = 'Stremio add-on for Tamil movies and series';
+        document.getElementById('addon-url').textContent = window.location.origin + '/manifest.json';
+      }
+    }
+
+    async function testEndpoint(endpoint) {
+      try {
+        const response = await fetch(endpoint);
+        const data = await response.json();
+        alert('✅ Success! ' + endpoint + ' returned valid data');
+      } catch (error) {
+        alert('❌ Error testing ' + endpoint + ': ' + error.message);
+      }
+    }
+
+    function copyToClipboard() {
+      const url = document.getElementById('addon-url').textContent;
+      navigator.clipboard.writeText(url).then(() => {
+        alert('✅ URL copied to clipboard!');
+      }).catch(() => {
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        alert('✅ URL copied to clipboard!');
+      });
+    }
+
+    // Load data when page loads
+    loadCacheInfo();
+  </script>
+</body>
+</html>
