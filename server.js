@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const manifest = require("./manifest");
 const defaultCatalog = require("./catalog");
-const { initializeTMDB, getMovies, getSeries } = require("./tmdb-service");
+const { initializeTMDB, getMovies, getSeries, getCacheInfo } = require("./tmdb-service");
 
 const app = express();
 // Use Replit's PORT environment variable or default to 3000
@@ -266,14 +266,7 @@ app.get("/", async (req, res) => {
   try {
     // Fetch sample movies for display
     const sampleMovies = await getMovies(false, 0, 12); // Get first 12 movies
-    const totalMovies = sampleMovies.length;
-
-    // Get cache info
-    const cacheInfo = {
-      moviesCount: sampleMovies.length,
-      lastUpdated: cache.lastUpdated ? new Date(cache.lastUpdated).toLocaleString() : 'Never',
-      cacheExpiry: `${cache.cacheExpiry / (60 * 60 * 1000)} hours`
-    };
+    const cacheInfo = getCacheInfo();
 
     // Generate movie grid HTML
     const movieGrid = sampleMovies.slice(0, 12).map(movie => `

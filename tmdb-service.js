@@ -384,5 +384,11 @@ module.exports = {
   initializeTMDB,
   getMovies,
   getSeries,
-  isCacheValid
+  getCacheInfo: () => ({
+    moviesCount: cache.movies ? cache.movies.length : 0,
+    seriesCount: cache.series ? cache.series.length : 0,
+    lastUpdated: cache.lastUpdated ? new Date(cache.lastUpdated).toLocaleString() : 'Never',
+    cacheExpiry: `${cache.cacheExpiry / (60 * 60 * 1000)} hours`,
+    isValid: isCacheValid()
+  })
 };
