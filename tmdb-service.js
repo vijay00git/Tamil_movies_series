@@ -113,20 +113,105 @@ function getGenreNames(genreIds) {
 }
 
 /**
- * Fetch Tamil movies from TMDB
+ * Fetch Tamil movies from TMDB - comprehensive approach
  */
 async function fetchTamilMovies() {
   try {
     console.log('📽️  Fetching Tamil movies from TMDB...');
 
-    // Search for movies whose original language is Tamil
-    const url = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=ta&with_original_language=ta&sort_by=popularity.desc&vote_average.gte=5&page=1`;
+    const allMovies = [];
 
-    const response = await fetchFromTMDB(url);
-    const movies = response.results ? response.results.map(formatMovie) : [];
+    // Strategy 1: Movies with original Tamil language
+    try {
+      const tamilUrl = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=en&with_original_language=ta&sort_by=popularity.desc&page=1`;
+      const tamilResponse = await fetchFromTMDB(tamilUrl);
+      if (tamilResponse.results) {
+        allMovies.push(...tamilResponse.results.map(formatMovie));
+      }
+    } catch (error) {
+      console.log('⚠️  Tamil original language query failed, continuing...');
+    }
 
-    console.log(`✅ Fetched ${movies.length} Tamil movies from TMDB`);
-    return movies;
+    // Strategy 2: Search for movies with "Tamil" in title or overview
+    try {
+      const searchUrl = `${TMDB_BASE_URL}/search/movie?api_key=${TMDB_API_KEY}&language=en&query=Tamil&sort_by=popularity.desc&page=1`;
+      const searchResponse = await fetchFromTMDB(searchUrl);
+      if (searchResponse.results) {
+        // Filter out duplicates and add new ones
+        const existingIds = new Set(allMovies.map(m => m.id));
+        const newMovies = searchResponse.results
+          .filter(movie => !existingIds.has(`tmdb_movie_${movie.id}`))
+          .map(formatMovie);
+        allMovies.push(...newMovies);
+      }
+    } catch (error) {
+      console.log('⚠️  Tamil search query failed, continuing...');
+    }
+
+    // Strategy 3: Popular movies from India (many Tamil movies are categorized this way)
+    try {
+      const indiaUrl = `${TMDB_BASE_URL}/discover/movie?api_key=${TMDB_API_KEY}&language=en&region=IN&sort_by=popularity.desc&vote_count.gte=10&page=1`;
+      const indiaResponse = await fetchFromTMDB(indiaUrl);
+      if (indiaResponse.results) {
+        // Filter for movies that might be Tamil (by checking title/keywords)
+        const existingIds = new Set(allMovies.map(m => m.id));
+        const tamilKeywords = ['tamil', 'kollywood', 'chennai', 'madras', 'south indian'];
+        const potentialTamilMovies = indiaResponse.results
+          .filter(movie => {
+            if (existingIds.has(`tmdb_movie_${movie.id}`)) return false;
+            const title = (movie.title || '').toLowerCase();
+            const overview = (movie.overview || '').toLowerCase();
+            return tamilKeywords.some(keyword =>
+              title.includes(keyword) || overview.includes(keyword)
+            );
+          })
+          .map(formatMovie);
+        allMovies.push(...potentialTamilMovies);
+      }
+    } catch (error) {
+      console.log('⚠️  India region query failed, continuing...');
+    }
+
+    // Strategy 4: Upcoming Tamil movies
+    try {
+      const upcomingUrl = `${TMDB_BASE_URL}/movie/upcoming?api_key=${TMDB_API_KEY}&language=en&region=IN&page=1`;
+      const upcomingResponse = await fetchFromTMDB(upcomingUrl);
+      if (upcomingResponse.results) {
+        const existingIds = new Set(allMovies.map(m => m.id));
+        const upcomingMovies = upcomingResponse.results
+          .filter(movie => !existingIds.has(`tmdb_movie_${movie.id}`))
+          .filter(movie => {
+            // Include if it has Tamil keywords or is from India
+            const title = (movie.title || '').toLowerCase();
+            const overview = (movie.overview || '').toLowerCase();
+            const tamilKeywords = ['tamil', 'kollywood', 'chennai', 'madras'];
+            return tamilKeywords.some(keyword =>
+              title.includes(keyword) || overview.includes(keyword)
+            );
+          })
+          .map(movie => ({
+            ...formatMovie(movie),
+            name: `${movie.title} (Upcoming)`
+          }));
+        allMovies.push(...upcomingMovies);
+      }
+    } catch (error) {
+      console.log('⚠️  Upcoming movies query failed, continuing...');
+    }
+
+    // Remove duplicates based on TMDB ID
+    const uniqueMovies = allMovies.filter((movie, index, self) =>
+      index === self.findIndex(m => m.id === movie.id)
+    );
+
+    // Sort by popularity (TMDB doesn't provide this directly, so we'll sort by rating and year)
+    uniqueMovies.sort((a, b) => {
+      if (b.rating !== a.rating) return b.rating - a.rating;
+      return b.year - a.year;
+    });
+
+    console.log(`✅ Fetched ${uniqueMovies.length} Tamil movies from TMDB`);
+    return uniqueMovies;
   } catch (error) {
     console.error('❌ Error fetching Tamil movies:', error.message);
     return [];
@@ -163,12 +248,14 @@ function isCacheValid() {
 }
 
 /**
- * Get movies with auto-update
+ * Get movies with auto-update and pagination support
  */
-async function getMovies(forceRefresh = false) {
+async function getMovies(forceRefresh = false, skip = 0, limit = 100) {
   if (!forceRefresh && isCacheValid() && cache.movies) {
     console.log('📚 Using cached movies');
-    return cache.movies;
+    const startIndex = parseInt(skip) || 0;
+    const endIndex = startIndex + (parseInt(limit) || 100);
+    return cache.movies.slice(startIndex, endIndex);
   }
 
   const movies = await fetchTamilMovies();
@@ -177,16 +264,20 @@ async function getMovies(forceRefresh = false) {
     cache.lastUpdated = Date.now();
   }
 
-  return cache.movies || [];
+  const startIndex = parseInt(skip) || 0;
+  const endIndex = startIndex + (parseInt(limit) || 100);
+  return (cache.movies || []).slice(startIndex, endIndex);
 }
 
 /**
- * Get series with auto-update
+ * Get series with auto-update and pagination support
  */
-async function getSeries(forceRefresh = false) {
+async function getSeries(forceRefresh = false, skip = 0, limit = 100) {
   if (!forceRefresh && isCacheValid() && cache.series) {
     console.log('📚 Using cached series');
-    return cache.series;
+    const startIndex = parseInt(skip) || 0;
+    const endIndex = startIndex + (parseInt(limit) || 100);
+    return cache.series.slice(startIndex, endIndex);
   }
 
   const series = await fetchTamilSeries();
@@ -195,7 +286,9 @@ async function getSeries(forceRefresh = false) {
     cache.lastUpdated = Date.now();
   }
 
-  return cache.series || [];
+  const startIndex = parseInt(skip) || 0;
+  const endIndex = startIndex + (parseInt(limit) || 100);
+  return (cache.series || []).slice(startIndex, endIndex);
 }
 
 /**

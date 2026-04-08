@@ -31,14 +31,21 @@ app.get("/catalog/:type/:id.json", async (req, res) => {
   const { genre, skip = 0 } = req.query;
 
   try {
-    // Fetch from TMDB (with cache) or use default catalog
+    // Fetch from TMDB (with cache and pagination) or use default catalog
     let tmdbMovies = [];
     let tmdbSeries = [];
-    
+    const skipNum = parseInt(skip) || 0;
+    const pageSize = 20;
+
     if (type === "movie") {
-      tmdbMovies = await getMovies();
+      // For genre-specific catalogs, we need all movies to filter properly
+      if (id.includes('_movies_') && id !== 'tamil_movies') {
+        tmdbMovies = await getMovies(false, 0, 1000); // Get many movies for filtering
+      } else {
+        tmdbMovies = await getMovies(false, skipNum, pageSize);
+      }
     } else if (type === "series") {
-      tmdbSeries = await getSeries();
+      tmdbSeries = await getSeries(false, skipNum, pageSize);
     }
 
     let items = [];
@@ -46,10 +53,10 @@ app.get("/catalog/:type/:id.json", async (req, res) => {
 
     // ===== MAIN CATALOGS =====
     if (id === "tamil_movies") {
-      items = tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies;
+      items = tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies.slice(skipNum, skipNum + pageSize);
       catalogName = "Tamil Movies";
     } else if (id === "tamil_series") {
-      items = tmdbSeries.length > 0 ? tmdbSeries : defaultCatalog.series;
+      items = tmdbSeries.length > 0 ? tmdbSeries : defaultCatalog.series.slice(skipNum, skipNum + pageSize);
       catalogName = "Tamil Series";
     }
 
@@ -58,56 +65,67 @@ app.get("/catalog/:type/:id.json", async (req, res) => {
       items = tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies;
       catalogName = "Latest Tamil Movies";
       items.sort((a, b) => b.year - a.year);
+      items = items.slice(skipNum, skipNum + pageSize);
     } else if (id === "tamil_movies_classics") {
-      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => 
+      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m =>
         m.year >= 1980 && m.year <= 1995
       );
       catalogName = "Classic Tamil Movies";
+      items = items.slice(skipNum, skipNum + pageSize);
     } else if (id === "tamil_movies_toprated") {
       items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => m.rating >= 7.0);
       items.sort((a, b) => b.rating - a.rating);
       catalogName = "Top Rated Tamil Movies";
+      items = items.slice(skipNum, skipNum + pageSize);
     } else if (id === "tamil_series_trending") {
       items = tmdbSeries.length > 0 ? tmdbSeries : defaultCatalog.series;
       catalogName = "Trending Tamil Series";
       items.sort((a, b) => b.year - a.year);
+      items = items.slice(skipNum, skipNum + pageSize);
     }
 
     // ===== DUBBED CONTENT =====
     else if (id === "tamil_dubbed_movies") {
       items = defaultCatalog.movies.filter(m => m.language === "Dubbed Tamil");
       catalogName = "Dubbed Tamil Movies";
+      items = items.slice(skipNum, skipNum + pageSize);
     } else if (id === "tamil_dubbed_series") {
       items = defaultCatalog.series.filter(s => s.language === "Dubbed Tamil");
       catalogName = "Dubbed Tamil Series";
+      items = items.slice(skipNum, skipNum + pageSize);
     }
 
     // ===== GENRE-WISE MOVIES =====
     else if (id === "tamil_movies_action") {
-      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => 
+      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m =>
         m.genres.includes("Action")
       );
       catalogName = "Tamil Action Movies";
+      items = items.slice(skipNum, skipNum + pageSize);
     } else if (id === "tamil_movies_drama") {
-      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => 
+      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m =>
         m.genres.includes("Drama")
       );
       catalogName = "Tamil Drama Movies";
+      items = items.slice(skipNum, skipNum + pageSize);
     } else if (id === "tamil_movies_romance") {
-      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => 
+      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m =>
         m.genres.includes("Romance")
       );
       catalogName = "Tamil Romance Movies";
+      items = items.slice(skipNum, skipNum + pageSize);
     } else if (id === "tamil_movies_comedy") {
-      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => 
+      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m =>
         m.genres.includes("Comedy")
       );
       catalogName = "Tamil Comedy Movies";
+      items = items.slice(skipNum, skipNum + pageSize);
     } else if (id === "tamil_movies_thriller") {
-      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m => 
+      items = (tmdbMovies.length > 0 ? tmdbMovies : defaultCatalog.movies).filter(m =>
         m.genres.includes("Thriller")
       );
       catalogName = "Tamil Thriller Movies";
+      items = items.slice(skipNum, skipNum + pageSize);
     }
 
     // Filter by genre if provided
