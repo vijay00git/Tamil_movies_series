@@ -8,6 +8,7 @@
     "dev": "node server.js",
     "quickstart": "node quickstart.js",
     "test": "node test-addon.js",
+    "test-url": "node test-url.js",
     "quickstart:view": "node -e \"require('./quickstart.js')\""
   },
   "keywords": [
